@@ -7,7 +7,7 @@ Minimum text editor for trying a font(.ttf) before installation.
 This is a rewriten code of fontpad.rb_ for Ruby 2.x using Ruby/Tk and Fiddle,
 instead of WxRuby and Win32API.
 
-.. _ https://github.com/hashimoton/fontpad
+.. _fontpad.rb: https://github.com/hashimoton/fontpad
 ===========
 PLATFORMS
 ===========
