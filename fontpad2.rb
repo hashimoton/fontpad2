@@ -1,38 +1,34 @@
 # coding: utf-8
 # fontpad2.rb
+# Usage: ruby fontpad2.rb [FILE.ttf]
 
 require "tk"
 require "fiddle/import"
 require "fiddle/types"
 require "ttfunk"
 
-require "pp"
-
 
 module Win32API
   extend Fiddle::Importer
   dlload 'gdi32.dll'
   include Fiddle::Win32Types
+  
   extern 'int AddFontResourceEx(LPCSTR, DWORD, PVOID)'
   extern 'int RemoveFontResourceEx(LPCSTR, DWORD, PVOID)'
-  
 end
-
 
 
 class FontLoader
   FR_PRIVATE = 0x10
-  
   PLATFORMS = ["Unicode", "Macintosh", "Reserved", "Microsoft"]
   
   def initialize
     @font_file_path = ""
   end
 
+
   def load(font_file_path)
-    if !@font_file_path.empty?
-     Win32API::RemoveFontResourceEx(@font_file_path, FR_PRIVATE, 0)
-    end
+    unload
     
     @font_file_path = font_file_path
     begin
@@ -41,12 +37,17 @@ class FontLoader
       @font_file_path = ""
       return 0
     end
+    
     return Win32API::AddFontResourceEx(@font_file_path, FR_PRIVATE, 0)
   end
 
 
   def unload
-    return Win32API::RemoveFontResourceEx(@font_file_path, FR_PRIVATE, 0)
+    if !@font_file_path.empty?
+      return Win32API::RemoveFontResourceEx(@font_file_path, FR_PRIVATE, 0)
+    else
+      return 0
+    end
   end
 
 
@@ -64,43 +65,32 @@ class FontLoader
     end
   end
 
-  def names
-    name_table = @font_file.name
-    font_name = name_table.font_name
-    font_name.each do |s|
-      puts "PL#{s.platform_id},EC#{s.encoding_id},LN#{s.language_id},#{s.inspect}"
-    end
-    
-    names = font_name.map do |raw_name|
+
+  def to_text_properties(text_records)    
+    properties = text_records.map do |raw_text|
       {
-        platform: PLATFORMS[raw_name.platform_id],
-        encoding: raw_name.encoding_id,
-        language: raw_name.language_id,
-        text: to_utf8(raw_name)
+        platform: PLATFORMS[raw_text.platform_id],
+        encoding: raw_text.encoding_id,
+        language: raw_text.language_id,
+        text: to_utf8(raw_text)
       }
     end
     
-    return names
+    return properties
+  end
+  
+  
+  def names
+    return to_text_properties(@font_file.name.font_name)
   end
   
   
   def families
-    name_table = @font_file.name
-    font_family = name_table.font_family
-    font_family.each do |s|
-      puts "PL#{s.platform_id},EC#{s.encoding_id},LN#{s.language_id},#{s.inspect}"
-    end
-    
-    families = font_family.map do |raw_name|
-      {
-        platform: PLATFORMS[raw_name.platform_id],
-        encoding: raw_name.encoding_id,
-        language: raw_name.language_id,
-        text: to_utf8(raw_name)
-      }
-    end
-    
-    return families
+    return to_text_properties(@font_file.name.font_family)
+  end
+  
+  def samples
+    return to_text_properties(@font_file.name.sample_text)
   end
 
 end
@@ -111,6 +101,7 @@ class FontPad2
 
   attr_accessor :font_loader, :window, :text
   
+  
   def initialize(options = {})
     window_options =
     {
@@ -119,40 +110,44 @@ class FontPad2
     }
     window_options.merge!(options)
     @window = TkRoot.new(window_options)
+    Tk::Wm.iconbitmap(window, __dir__ + "/icon.ico")
   end
-
+  
+  
   def run(font_file_path = "")
     @font_loader = FontLoader.new
     layout
     open_font(font_file_path)
-    
     Tk.mainloop
     @font_loader.unload
   end
   
+  
+  def format(properties)
+    text = properties.map do |name|
+      "  #{name[:platform]}(E#{name[:encoding]}/L#{name[:language]}): '#{name[:text]}'"
+    end.join("\n")
+    
+    return text
+  end
+  
+  
   def open_font(font_file_path)
-    puts font_file_path
     if font_file_path.nil? || font_file_path.empty?
-      @text.value = "Select a font file"
+      @text.value = "Open a font file"
     else
       loaded_count = @font_loader.load(font_file_path)
       
       if loaded_count > 0
         font_names = @font_loader.names
-        name_text = font_names.map do |name|
-          "  #{name[:platform]}: '#{name[:text]}'"
-        end.join("\n")
-        family_text = @font_loader.families.map do |name|
-          "  #{name[:platform]}: '#{name[:text]}'"
-        end.join("\n")
-        
         @text.value = "File:\n  #{font_file_path.encode('utf-8')}\n\n" +
-          "Name:\n#{name_text}\n\n" +
-          "Family:\n#{family_text}\n"
+          "Name:\n#{format(font_names)}\n\n" +
+          "Family:\n#{format(@font_loader.families)}\n\n" +
+          "Sample:\n#{format(@font_loader.samples)}\n"
         @text.font = TkFont.new(family: font_names.first[:text],
           size: FONT_DEFAULT_SIZE, weight: :normal)
       else
-        @text.value = "Can't load #{font_file_path}"
+        @text.value = "Can't open #{font_file_path}"
       end
     end
   end
@@ -176,7 +171,7 @@ class FontPad2
       end
     end
 
-    mb_increase= TkButton.new(toolbar) do
+    mb_increase = TkButton.new(toolbar) do
       text '+'
       pack(side: 'left')
     end.command {@text.font.size = [@text.font.size + 2, 64].min}
@@ -193,6 +188,8 @@ class FontPad2
   end
 end
 
+
+#### MAIN ####
 
 font_file_path = ARGV[0]
 FontPad2.new.run(font_file_path)
