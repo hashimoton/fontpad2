@@ -19,7 +19,8 @@ REQUIREMENTS
 ==============
 
 Ruby 2.x
-RubyGems: Ruby/Tk, Fiddle, ttfunk
+
+RubyGems: ttfunk
 
 ============
 SETUP
@@ -45,7 +46,7 @@ USAGE
 When with no font file, just displays a window.
 Then click "Open" button to select a font file.
 
-Once a font is opened,
+Once a font is opened:
 
 * "+" button to increase font size
 * "o" button to reset font size
